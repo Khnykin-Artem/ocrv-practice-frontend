@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Downloaded model files (re-download with scripts/download-model.sh)
+public/models/

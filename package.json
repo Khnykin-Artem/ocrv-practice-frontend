@@ -9,6 +9,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@primevue/themes": "^4.5.4",
+    "@xenova/transformers": "^2.17.2",
+    "chart.js": "^4.5.1",
+    "primeflex": "^3.3.1",
+    "primeicons": "^7.0.0",
+    "primevue": "^4.5.5",
     "vue": "^3.5.34"
   },
   "devDependencies": {
