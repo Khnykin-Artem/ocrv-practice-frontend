@@ -1,7 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import { predictLayout } from '../utils/aiClassifier'
-import layoutDescriptions from '../layouts/layoutDescriptions'
+import ProgressSpinner from 'primevue/progressspinner'
 import Layout1 from '../layouts/Layout1.vue'
 import Layout2 from '../layouts/Layout2.vue'
 import Layout3 from '../layouts/Layout3.vue'
@@ -17,10 +15,10 @@ import Layout12 from '../layouts/Layout12.vue'
 import Layout13 from '../layouts/Layout13.vue'
 import Layout14 from '../layouts/Layout14.vue'
 import Layout15 from '../layouts/Layout15.vue'
-import ProgressSpinner from 'primevue/progressspinner'
 
 const props = defineProps({
-  news: { type: Object, required: true }
+  news: { type: Object, required: true },
+  bestIndex: { type: Number, default: null }
 })
 
 const layouts = [
@@ -28,34 +26,15 @@ const layouts = [
   Layout6, Layout7, Layout8, Layout9, Layout10,
   Layout11, Layout12, Layout13, Layout14, Layout15
 ]
-
-const bestIndex = ref(null)
-const loading = ref(true)
-const errorMsg = ref('')
-
-onMounted(async () => {
-  try {
-    const idx = await predictLayout(props.news, layoutDescriptions)
-    bestIndex.value = idx
-  } catch (e) {
-    errorMsg.value = e.message || String(e)
-  } finally {
-    loading.value = false
-  }
-})
 </script>
 
 <template>
   <div class="dynamic-layout">
-    <div v-if="loading" class="flex justify-content-center p-4">
+    <div v-if="bestIndex === null" class="flex justify-content-center p-4">
       <ProgressSpinner />
       <p class="ml-2">AI загружает модель и подбирает макет...</p>
     </div>
-    <div v-else-if="errorMsg" class="p-3 surface-200 border-round text-center">
-      <p class="text-red-600 font-semibold">Ошибка AI:</p>
-      <p class="text-sm text-color-secondary">{{ errorMsg }}</p>
-    </div>
-    <div v-else-if="bestIndex !== null" class="relative anim-scale">
+    <div v-else class="relative anim-scale">
       <Tag :value="'Макет ' + (bestIndex + 1)" severity="info" rounded class="absolute top-0 right-0 z-5" style="margin:-8px -4px" />
       <component :is="layouts[bestIndex]" :news="news" />
     </div>

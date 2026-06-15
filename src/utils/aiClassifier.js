@@ -1,9 +1,8 @@
-if (typeof caches !== 'undefined') {
-  caches.delete('transformers-cache').catch(() => {})
-}
+import { pipeline, env } from '@xenova/transformers'
 
 let encoder = null
 let layoutEmbeddings = null
+const LAYOUT_CACHE_KEY = 'layout-embeddings-v1'
 
 function meanPool(data, dims) {
   const [batchSize, seqLen, hiddenSize] = dims
@@ -37,8 +36,6 @@ function cosineSim(a, b) {
 
 async function getEncoder() {
   if (!encoder) {
-    const mod = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js')
-    const { pipeline, env } = mod
     env.allowLocalModels = true
     env.localModelPath = '/models/'
     env.allowRemoteModels = false
@@ -141,12 +138,32 @@ function fieldMatchScore(news, layoutDesc) {
   return score
 }
 
-export async function predictLayout(news, layoutDescriptions) {
-  if (!layoutEmbeddings) {
-    layoutEmbeddings = await embedBatch(
-      layoutDescriptions.map(d => 'passage: ' + d)
-    )
+export async function preloadModel() {
+  const pipe = await getEncoder()
+  await pipe(['warmup'])
+}
+
+async function getLayoutEmbeddings(layoutDescriptions) {
+  if (layoutEmbeddings) return layoutEmbeddings
+  const cached = localStorage.getItem(LAYOUT_CACHE_KEY)
+  if (cached) {
+    layoutEmbeddings = JSON.parse(cached).map(arr => {
+      const vec = new Float32Array(arr.length)
+      for (let i = 0; i < arr.length; i++) vec[i] = arr[i]
+      return normalize(vec)
+    })
+    return layoutEmbeddings
   }
+  layoutEmbeddings = await embedBatch(
+    layoutDescriptions.map(d => 'passage: ' + d)
+  )
+  const serialized = layoutEmbeddings.map(v => Array.from(v))
+  localStorage.setItem(LAYOUT_CACHE_KEY, JSON.stringify(serialized))
+  return layoutEmbeddings
+}
+
+export async function predictLayout(news, layoutDescriptions) {
+  await getLayoutEmbeddings(layoutDescriptions)
 
   const [newsVec] = await embedBatch(['query: ' + describeNews(news)])
 
@@ -162,4 +179,27 @@ export async function predictLayout(news, layoutDescriptions) {
     }
   }
   return maxIdx
+}
+
+export async function predictLayoutBatch(newsArray, layoutDescriptions) {
+  await getLayoutEmbeddings(layoutDescriptions)
+
+  const newsTexts = newsArray.map(n => 'query: ' + describeNews(n))
+  const newsVectors = await embedBatch(newsTexts)
+
+  return newsArray.map((news, i) => {
+    const newsVec = newsVectors[i]
+    let maxScore = -Infinity
+    let maxIdx = 0
+    for (let j = 0; j < layoutEmbeddings.length; j++) {
+      const aiSim = cosineSim(newsVec, layoutEmbeddings[j])
+      const ruleScore = fieldMatchScore(news, layoutDescriptions[j])
+      const total = aiSim * 0.6 + ruleScore * 0.4
+      if (total > maxScore) {
+        maxScore = total
+        maxIdx = j
+      }
+    }
+    return maxIdx
+  })
 }

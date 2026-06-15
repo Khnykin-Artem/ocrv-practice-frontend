@@ -26,6 +26,7 @@ import Galleria from 'primevue/galleria'
 import Image from 'primevue/image'
 import InlineMessage from 'primevue/inlinemessage'
 import InputSwitch from 'primevue/inputswitch'
+import InputText from 'primevue/inputtext'
 import Knob from 'primevue/knob'
 import Listbox from 'primevue/listbox'
 import Message from 'primevue/message'
@@ -80,6 +81,7 @@ app.component('Galleria', Galleria)
 app.component('Image', Image)
 app.component('InlineMessage', InlineMessage)
 app.component('InputSwitch', InputSwitch)
+app.component('InputText', InputText)
 app.component('Knob', Knob)
 app.component('Listbox', Listbox)
 app.component('Message', Message)
@@ -101,3 +103,7 @@ app.component('ToggleSwitch', ToggleSwitch)
 app.component('Toolbar', Toolbar)
 app.component('Tree', Tree)
 app.mount('#app')
+
+import('./utils/aiClassifier').then(({ preloadModel }) => {
+  preloadModel()
+})

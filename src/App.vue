@@ -1,6 +1,9 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import DynamicLayout from './components/DynamicLayout.vue'
+import ChatPanel from './components/ChatPanel.vue'
+import { predictLayoutBatch } from './utils/aiClassifier'
+import layoutDescriptions from './layouts/layoutDescriptions'
 
 const VISIBLE_COUNT = 6
 
@@ -485,7 +488,23 @@ function pickRandom(arr, count) {
   return shuffled.slice(0, count)
 }
 
-const picked = pickRandom(newsItems, VISIBLE_COUNT)
+const picked = ref(pickRandom(newsItems, VISIBLE_COUNT))
+const layoutIndices = ref(picked.value.map(() => null))
+
+onMounted(async () => {
+  try {
+    const indices = await predictLayoutBatch(picked.value, layoutDescriptions)
+    layoutIndices.value = indices
+  } catch {
+    layoutIndices.value = picked.value.map(() => 0)
+  }
+})
+
+const mode = ref('chat')
+const modes = [
+  { value: 'chat', label: 'Чат', icon: 'pi pi-comments' },
+  { value: 'feed', label: 'Лента', icon: 'pi pi-list' }
+]
 
 const darkMode = ref(false)
 function toggleDark() {
@@ -497,14 +516,23 @@ function toggleDark() {
 <template>
   <div class="app-container">
     <header class="flex align-items-center justify-content-between mb-4 pb-3" style="border-bottom:1px solid var(--surface-border)">
-      <h1 class="text-3xl font-bold m-0">AI News Layout Demo</h1>
       <div class="flex align-items-center gap-2">
-        <i class="pi pi-sun" :class="darkMode ? 'text-color-secondary' : 'text-yellow-500'" />
-        <InputSwitch :model-value="darkMode" @update:model-value="toggleDark" />
-        <i class="pi pi-moon" :class="darkMode ? 'text-yellow-500' : 'text-color-secondary'" />
+        <h1 class="text-3xl font-bold m-0">AI News Layout Demo</h1>
+      </div>
+      <div class="flex align-items-center gap-3">
+        <SelectButton v-model="mode" :options="modes" optionValue="value" optionLabel="label" />
+        <div class="flex align-items-center gap-2">
+          <i class="pi pi-sun" :class="darkMode ? 'text-color-secondary' : 'text-yellow-500'" />
+          <InputSwitch :model-value="darkMode" @update:model-value="toggleDark" />
+          <i class="pi pi-moon" :class="darkMode ? 'text-yellow-500' : 'text-color-secondary'" />
+        </div>
       </div>
     </header>
-    <DynamicLayout v-for="(item, i) in picked" :key="i" :news="item" class="mb-4" />
+
+    <ChatPanel v-if="mode === 'chat'" />
+    <template v-else>
+      <DynamicLayout v-for="(item, i) in picked" :key="i" :news="item" :bestIndex="layoutIndices[i]" class="mb-4" />
+    </template>
   </div>
 </template>
 
@@ -532,6 +560,16 @@ body {
   max-width: 1024px;
   margin: 0 auto;
   padding: 2rem 1rem;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-container:has(.chat-panel) > header {
+  flex-shrink: 0;
+}
+.app-container:has(.chat-panel) > .chat-panel {
+  flex: 1;
 }
 
 /* ---------- HEADER ---------- */
