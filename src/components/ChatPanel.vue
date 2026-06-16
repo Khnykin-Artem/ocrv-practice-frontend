@@ -1,10 +1,14 @@
 <script setup>
-import { ref, nextTick, watch } from 'vue'
+import { ref, nextTick } from 'vue'
 import ChatMessage from './ChatMessage.vue'
 import VoiceInput from './VoiceInput.vue'
+import { useVoiceCommands } from '../composables/useVoiceCommands'
+
+const emit = defineEmits(['command'])
 
 const messages = ref([])
 const scrollRef = ref(null)
+const { matchCommand } = useVoiceCommands()
 
 function addMessage(role, text) {
   messages.value.push({
@@ -26,6 +30,14 @@ function scrollToBottom() {
 
 function handleSubmit(text) {
   addMessage('user', text)
+
+  const cmd = matchCommand(text)
+  if (cmd) {
+    addMessage('assistant', cmd.reply)
+    emit('command', cmd.action)
+    return
+  }
+
   addMessage('assistant', '…')
 
   setTimeout(() => {

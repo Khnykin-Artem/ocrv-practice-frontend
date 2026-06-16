@@ -507,9 +507,22 @@ const modes = [
 ]
 
 const darkMode = ref(false)
+function setDark(val) {
+  darkMode.value = val
+  document.documentElement.classList.toggle('app-dark', val)
+}
 function toggleDark() {
-  darkMode.value = !darkMode.value
-  document.documentElement.classList.toggle('app-dark', darkMode.value)
+  setDark(!darkMode.value)
+}
+
+function handleVoiceCommand(action) {
+  switch (action) {
+    case 'dark-mode': setDark(true); break
+    case 'light-mode': setDark(false); break
+    case 'toggle-theme': toggleDark(); break
+    case 'switch-to-feed': mode.value = 'feed'; break
+    case 'switch-to-chat': mode.value = 'chat'; break
+  }
 }
 </script>
 
@@ -529,7 +542,7 @@ function toggleDark() {
       </div>
     </header>
 
-    <ChatPanel v-if="mode === 'chat'" />
+    <ChatPanel v-if="mode === 'chat'" @command="handleVoiceCommand" />
     <template v-else>
       <DynamicLayout v-for="(item, i) in picked" :key="i" :news="item" :bestIndex="layoutIndices[i]" class="mb-4" />
     </template>
