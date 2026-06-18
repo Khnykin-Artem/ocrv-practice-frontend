@@ -7,10 +7,8 @@ const isRecording = ref(false)
 const recordingTime = ref('00:00')
 
 let stream = null
-let audioCtx = null
-let source = null
-let processor = null
-let samples = []
+let mediaRecorder = null
+let audioChunks = []
 let timerInterval = null
 let startTime = 0
 
@@ -18,8 +16,8 @@ function wavEncode(samples, rate) {
   const len = samples.length
   const buf = new ArrayBuffer(44 + len * 2)
   const v = new DataView(buf)
-  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)) }
 
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)) }
   w(0, 'RIFF'); v.setUint32(4, 36 + len * 2, true); w(8, 'WAVE')
   w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true)
   v.setUint16(22, 1, true); v.setUint32(24, rate, true)
@@ -53,8 +51,7 @@ function resample(samples, fromRate, toRate) {
 function formatTime(ms) {
   const s = Math.floor(ms / 1000)
   const m = Math.floor(s / 60)
-  const sec = s % 60
-  return String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0')
+  return String(m).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0')
 }
 
 function startTimer() {
@@ -73,23 +70,19 @@ function stopTimer() {
 }
 
 async function startRecording() {
-  samples = []
+  audioChunks = []
 
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } })
 
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)()
-    if (audioCtx.state === 'suspended') await audioCtx.resume()
-
-    source = audioCtx.createMediaStreamSource(stream)
-    processor = audioCtx.createScriptProcessor(4096, 1, 1)
-
-    processor.onaudioprocess = (e) => {
-      const ch = e.inputBuffer.getChannelData(0)
-      samples.push(new Float32Array(ch))
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : ''
+    mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {})
+    mediaRecorder.ondataavailable = e => {
+      if (e.data.size > 0) audioChunks.push(e.data)
     }
-
-    source.connect(processor)
+    mediaRecorder.start()
     isRecording.value = true
     startTimer()
   } catch (err) {
@@ -97,94 +90,89 @@ async function startRecording() {
   }
 }
 
-function stopRecording() {
-  if (!processor || !audioCtx || !source) {
-    cleanup()
-    return
-  }
-
+async function finishRecording() {
   isRecording.value = false
   stopTimer()
 
-  processor.disconnect()
-  source.disconnect()
-  processor.onaudioprocess = null
+  if (!mediaRecorder || mediaRecorder.state !== 'recording') return
 
-  cleanup()
-
-  processAudio()
+  mediaRecorder.onstop = async () => {
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop())
+      stream = null
+    }
+    mediaRecorder = null
+    await convertAndSend()
+  }
+  mediaRecorder.stop()
 }
 
-function cleanup() {
-  processor = null
-  source = null
-
-  if (stream) {
-    stream.getTracks().forEach(t => t.stop())
-    stream = null
-  }
-
-  if (audioCtx) {
-    audioCtx.close()
-    audioCtx = null
-  }
-}
-
-function processAudio() {
-  if (samples.length === 0) {
-    emit('error', 'Не удалось захватить аудио. Попробуйте ещё раз.')
-    samples = []
+async function convertAndSend() {
+  if (audioChunks.length === 0) {
+    emit('error', 'Не удалось захватить аудио')
     return
   }
 
-  const totalLen = samples.reduce((s, a) => s + a.length, 0)
-  const merged = new Float32Array(totalLen)
-  let offset = 0
-  for (const a of samples) {
-    merged.set(a, offset)
-    offset += a.length
+  const raw = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' })
+  audioChunks = []
+
+  let ctx
+  try {
+    ctx = new (window.AudioContext || window.webkitAudioContext)()
+    if (ctx.state === 'suspended') await ctx.resume()
+
+    const buf = await raw.arrayBuffer()
+    const audioBuf = await ctx.decodeAudioData(buf)
+    const srcRate = audioBuf.sampleRate
+    const src = audioBuf.getChannelData(0)
+    const resampled = resample(src, srcRate, 16000)
+    const wav = wavEncode(resampled, 16000)
+
+    emit('submit', wav)
+  } catch {
+    emit('submit', raw)
+  } finally {
+    if (ctx) ctx.close()
   }
-  samples = []
-
-  const srcRate = audioCtx ? audioCtx.sampleRate : 48000
-  const resampled = resample(merged, srcRate, 16000)
-  const wav = wavEncode(resampled, 16000)
-
-  emit('submit', wav)
 }
 
 function toggleMic() {
-  if (isRecording.value) stopRecording()
+  if (isRecording.value) finishRecording()
   else startRecording()
 }
 
 onUnmounted(() => {
   stopTimer()
-  cleanup()
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop())
+  }
 })
 </script>
 
 <template>
-  <div class="flex flex-column align-items-center">
-    <div class="flex align-items-center justify-content-center gap-3">
+  <div>
+    <div class="voice-input flex align-items-center gap-2">
       <Button
         :icon="isRecording ? 'pi pi-stop-circle' : 'pi pi-microphone'"
         :class="['mic-btn', { 'pulsing': isRecording }]"
         :severity="isRecording ? 'danger' : 'primary'"
-        :rounded="true"
-        :size="isRecording ? 'large' : 'large'"
+        rounded
         @click="toggleMic"
         v-tooltip.top="isRecording ? 'Остановить запись' : 'Голосовой запрос'"
       />
       <span v-if="isRecording" class="text-sm font-mono text-color-secondary">{{ recordingTime }}</span>
     </div>
-    <span v-if="!isRecording" class="text-xs text-color-secondary mt-2">Нажмите на микрофон и задайте вопрос голосом</span>
+    <small v-if="!isRecording" class="text-xs text-color-secondary block mt-1">Нажмите на микрофон и задайте вопрос голосом</small>
   </div>
 </template>
 
 <style scoped>
+.voice-input {
+  width: 100%;
+}
 .mic-btn {
   transition: all 0.2s;
+  flex-shrink: 0;
 }
 .mic-btn.pulsing {
   animation: pulse-ring 1.5s infinite;

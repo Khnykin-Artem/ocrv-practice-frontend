@@ -2,6 +2,7 @@ import { createApp } from 'vue'
 import PrimeVue from 'primevue/config'
 import Lara from '@primevue/themes/lara'
 import 'primeflex/primeflex.css'
+import 'primeicons/primeicons.css'
 import App from './App.vue'
 
 import Accordion from 'primevue/accordion'

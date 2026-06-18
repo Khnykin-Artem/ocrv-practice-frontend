@@ -8,6 +8,18 @@ import layoutDescriptions from './layouts/layoutDescriptions'
 
 const VISIBLE_COUNT = 6
 
+const darkMode = ref(localStorage.getItem('app-theme') === 'dark')
+
+function toggleTheme() {
+  darkMode.value = !darkMode.value
+  localStorage.setItem('app-theme', darkMode.value ? 'dark' : 'light')
+  document.documentElement.classList.toggle('app-dark', darkMode.value)
+}
+
+onMounted(() => {
+  if (darkMode.value) document.documentElement.classList.add('app-dark')
+})
+
 const FALLBACK_NEWS = [
   {
     title: 'Сборная России вышла в полуфинал чемпионата мира по футболу',
@@ -341,35 +353,50 @@ function onCommand(action) {
   <div class="app-wrapper">
     <header class="app-header surface-section border-bottom-1 surface-border px-4 py-3">
       <div class="flex align-items-center gap-3" style="max-width:1400px;margin:0 auto">
-        <div class="flex align-items-center gap-2">
-          <i class="pi pi-megaphone text-3xl text-primary" />
-          <h1 class="text-xl font-bold m-0">CyberHerald</h1>
+        <div class="flex align-items-center gap-2 cursor-pointer" @click="mode = 'feed'">
+          <div class="header-logo flex align-items-center justify-content-center border-circle bg-primary" style="width:40px;height:40px">
+            <i class="pi pi-megaphone text-white text-xl" />
+          </div>
+          <h1 class="text-xl font-bold m-0">Cyber<span class="text-primary">Herald</span></h1>
         </div>
-        <div class="flex align-items-center gap-1 ml-auto">
+
+        <div class="flex align-items-center gap-2 ml-auto">
+          <div class="flex align-items-center gap-1 p-1 surface-200 border-round">
+            <Button
+              icon="pi pi-list"
+              label="Лента"
+              :severity="mode === 'feed' ? 'primary' : 'secondary'"
+              :outlined="mode !== 'feed'"
+              size="small"
+              @click="mode = 'feed'"
+            />
+            <Button
+              icon="pi pi-comments"
+              label="AI Чат"
+              :severity="mode === 'chat' ? 'primary' : 'secondary'"
+              :outlined="mode !== 'chat'"
+              size="small"
+              @click="mode = 'chat'"
+            />
+          </div>
+
           <Button
-            :icon="mode === 'chat' ? 'pi pi-comments' : 'pi pi-comments'"
-            :label="mode === 'chat' ? 'AI Чат' : 'AI Чат'"
-            :severity="mode === 'chat' ? 'primary' : 'secondary'"
-            size="small"
-            @click="mode = 'chat'"
-          />
-          <ToggleSwitch v-model="mode" onLabel="" offLabel="" class="hidden" />
-          <Button
-            :icon="mode === 'feed' ? 'pi pi-list' : 'pi pi-list'"
-            :label="mode === 'feed' ? 'Лента' : 'Лента'"
-            :severity="mode === 'feed' ? 'primary' : 'secondary'"
-            size="small"
-            @click="mode = 'feed'"
+            :icon="darkMode ? 'pi pi-moon' : 'pi pi-sun'"
+            :severity="darkMode ? 'contrast' : 'secondary'"
+            rounded
+            text
+            v-tooltip.bottom="darkMode ? 'Светлая тема' : 'Тёмная тема'"
+            @click="toggleTheme"
           />
         </div>
       </div>
     </header>
 
-    <main class="app-main px-4 py-3">
-      <div style="max-width:1400px;margin:0 auto">
+    <main class="app-main">
+      <div style="max-width:1400px;margin:0 auto;min-height:calc(100vh - 70px)">
         <transition name="fade" mode="out-in">
           <ChatPanel v-if="mode === 'chat'" key="chat" @command="onCommand" />
-          <div v-else key="feed">
+          <div v-else key="feed" class="p-4">
             <div v-if="loading" class="flex flex-column align-items-center justify-content-center" style="min-height:60vh">
               <ProgressSpinner />
               <p class="text-color-secondary mt-3">Загрузка новостей...</p>
@@ -392,13 +419,29 @@ function onCommand(action) {
 <style>
 body {
   margin: 0;
+  transition: background-color 0.3s, color 0.3s;
 }
 .app-wrapper {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  transition: background-color 0.3s;
 }
 .app-main {
   flex: 1;
+}
+.header-logo {
+  transition: transform 0.2s;
+}
+.header-logo:hover {
+  transform: scale(1.05);
+}
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>
