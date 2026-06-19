@@ -9,11 +9,18 @@ import layoutDescriptions from './layouts/layoutDescriptions'
 const VISIBLE_COUNT = 6
 
 const darkMode = ref(localStorage.getItem('app-theme') === 'dark')
+const newsSection = ref(null)
 
 function toggleTheme() {
   darkMode.value = !darkMode.value
   localStorage.setItem('app-theme', darkMode.value ? 'dark' : 'light')
   document.documentElement.classList.toggle('app-dark', darkMode.value)
+}
+
+function scrollToNews() {
+  if (newsSection.value) {
+    newsSection.value.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 }
 
 onMounted(() => {
@@ -351,67 +358,95 @@ function onCommand(action) {
 
 <template>
   <div class="app-wrapper">
-    <header class="app-header surface-section border-bottom-1 surface-border px-4 py-3">
+    <header class="app-header px-4 py-3">
       <div class="flex align-items-center gap-3" style="max-width:1400px;margin:0 auto">
         <div class="flex align-items-center gap-2 cursor-pointer" @click="mode = 'feed'">
-          <div class="header-logo flex align-items-center justify-content-center border-circle bg-primary" style="width:40px;height:40px">
-            <i class="pi pi-megaphone text-white text-xl" />
-          </div>
-          <h1 class="text-xl font-bold m-0">Cyber<span class="text-primary">Herald</span></h1>
+          <i class="pi pi-megaphone text-2xl" style="color:var(--p-primary-color)" />
+          <span class="text-xl font-bold">CyberHerald</span>
         </div>
-
-        <div class="flex align-items-center gap-2 ml-auto">
-          <div class="flex align-items-center gap-1 p-1 surface-200 border-round">
-            <Button
-              icon="pi pi-list"
-              label="Лента"
-              :severity="mode === 'feed' ? 'primary' : 'secondary'"
-              :outlined="mode !== 'feed'"
-              size="small"
-              @click="mode = 'feed'"
-            />
-            <Button
-              icon="pi pi-comments"
-              label="AI Чат"
-              :severity="mode === 'chat' ? 'primary' : 'secondary'"
-              :outlined="mode !== 'chat'"
-              size="small"
-              @click="mode = 'chat'"
-            />
-          </div>
-
+        <div class="flex-1"></div>
+        <div class="flex align-items-center gap-1">
           <Button
-            :icon="darkMode ? 'pi pi-moon' : 'pi pi-sun'"
-            :severity="darkMode ? 'contrast' : 'secondary'"
-            rounded
-            text
-            v-tooltip.bottom="darkMode ? 'Светлая тема' : 'Тёмная тема'"
-            @click="toggleTheme"
+            icon="pi pi-list"
+            label="Лента"
+            :severity="mode === 'feed' ? 'primary' : 'secondary'"
+            :outlined="mode !== 'feed'"
+            size="small"
+            @click="mode = 'feed'"
+          />
+          <Button
+            icon="pi pi-comments"
+            label="AI Чат"
+            :severity="mode === 'chat' ? 'primary' : 'secondary'"
+            :outlined="mode !== 'chat'"
+            size="small"
+            @click="mode = 'chat'"
           />
         </div>
+        <Button
+          :icon="darkMode ? 'pi pi-moon' : 'pi pi-sun'"
+          severity="secondary"
+          rounded
+          text
+          v-tooltip.bottom="darkMode ? 'Светлая тема' : 'Тёмная тема'"
+          @click="toggleTheme"
+        />
       </div>
     </header>
 
     <main class="app-main">
-      <div style="max-width:1400px;margin:0 auto;min-height:calc(100vh - 70px)">
-        <transition name="fade" mode="out-in">
-          <ChatPanel v-if="mode === 'chat'" key="chat" @command="onCommand" />
-          <div v-else key="feed" class="p-4">
-            <div v-if="loading" class="flex flex-column align-items-center justify-content-center" style="min-height:60vh">
-              <ProgressSpinner />
-              <p class="text-color-secondary mt-3">Загрузка новостей...</p>
+      <transition name="fade" mode="out-in">
+        <div v-if="mode === 'chat'" key="chat" style="max-width:800px;margin:0 auto;height:calc(100vh - 65px);display:flex;flex-direction:column;padding:0">
+          <ChatPanel @command="onCommand" />
+        </div>
+
+        <div v-else key="feed">
+          <div class="hero-section px-4 pt-5 pb-6">
+            <div class="text-center" style="max-width:700px;margin:0 auto">
+              <div class="hero-icon flex align-items-center justify-content-center border-circle bg-primary mb-3" style="width:72px;height:72px;margin:0 auto">
+                <i class="pi pi-megaphone text-white text-3xl" />
+              </div>
+              <h1 class="text-4xl font-bold m-0 mb-2">Добро пожаловать в <span class="text-primary">CyberHerald</span></h1>
+              <p class="text-lg text-color-secondary m-0 mb-4">Ваш AI-ассистент для поиска и анализа новостей. Задавайте вопросы голосом и получайте структурированные ответы с графиками и источниками.</p>
+              <div class="flex align-items-center gap-2 justify-content-center">
+                <Button icon="pi pi-comments" label="Начать чат" severity="primary" size="large" @click="mode = 'chat'" />
+                <Button icon="pi pi-arrow-down" label="Новости дня" severity="secondary" size="large" outlined @click="scrollToNews" />
+              </div>
             </div>
-            <template v-else>
-              <DynamicLayout
-                v-for="(item, i) in visibleNews"
-                :key="i"
-                :news="item"
-                :best-index="predictedLayouts[i] ?? 0"
-              />
-            </template>
           </div>
-        </transition>
-      </div>
+
+          <div ref="newsSection" class="px-4" style="margin-top:-2rem">
+            <div style="max-width:1400px;margin:0 auto">
+              <div v-if="loading" class="flex flex-column align-items-center justify-content-center py-8">
+                <ProgressSpinner />
+                <p class="text-color-secondary mt-3">Загрузка новостей...</p>
+              </div>
+              <template v-else>
+                <div class="flex align-items-center gap-2 mb-4">
+                  <div class="flex-1" style="height:1px;background:var(--surface-border)"></div>
+                  <i class="pi pi-star-fill text-primary"></i>
+                  <span class="font-semibold text-lg text-color">Главные новости</span>
+                  <div class="flex-1" style="height:1px;background:var(--surface-border)"></div>
+                </div>
+                <div class="grid">
+                  <div v-for="(item, i) in visibleNews" :key="i" class="col-12 lg:col-6 xl:col-6">
+                    <div class="news-card anim-enter" :style="{ animationDelay: (i * 0.08) + 's' }">
+                      <DynamicLayout
+                        :news="item"
+                        :best-index="predictedLayouts[i] ?? 0"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <div class="text-center py-5 text-color-secondary text-sm">
+            <span>CyberHerald &copy; 2026 &mdash; AI-powered news aggregation</span>
+          </div>
+        </div>
+      </transition>
     </main>
   </div>
 </template>
@@ -419,26 +454,32 @@ function onCommand(action) {
 <style>
 body {
   margin: 0;
-  transition: background-color 0.3s, color 0.3s;
 }
 .app-wrapper {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  transition: background-color 0.3s;
 }
 .app-main {
   flex: 1;
 }
-.header-logo {
-  transition: transform 0.2s;
+.hero-section {
+  position: relative;
+  overflow: hidden;
 }
-.header-logo:hover {
-  transform: scale(1.05);
+.hero-icon {
+  box-shadow: 0 8px 32px rgba(59,130,246,0.3);
+}
+.news-card {
+  animation: cardEnter 0.5s ease backwards;
+}
+@keyframes cardEnter {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.25s ease;
+  transition: opacity 0.2s ease;
 }
 .fade-enter-from,
 .fade-leave-to {
